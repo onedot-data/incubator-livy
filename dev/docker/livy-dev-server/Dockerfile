@@ -35,6 +35,6 @@ RUN unzip ${LIVY_PACKAGE}.zip 1>/dev/null \
   && rm ${LIVY_PACKAGE}.zip
 
 # Uncomment following line or add more such lines to replace the default jars with private builds.
-# COPY livy-core_2.12-0.8.0-incubating.jar ${SPARK_HOME}/repl_2.12-jars/livy-core_2.12-0.8.0-incubating.jar
+# COPY livy-core_2.12-0.9.0-incubating.jar ${SPARK_HOME}/repl_2.12-jars/livy-core_2.12-0.9.0-incubating.jar
 
 WORKDIR ${LIVY_HOME}

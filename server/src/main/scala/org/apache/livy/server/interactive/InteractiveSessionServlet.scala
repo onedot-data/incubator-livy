@@ -55,9 +55,12 @@ class InteractiveSessionServlet(
     val createRequest = bodyAs[CreateInteractiveRequest](req)
     val sessionId = sessionManager.nextId();
 
-    // Calling getTimeAsMs just to validate the ttl value
+    // Calling getTimeAsMs just to validate the ttl and idleTimeout values
     if (createRequest.ttl.isDefined) {
       ClientConf.getTimeAsMs(createRequest.ttl.get);
+    }
+    if (createRequest.idleTimeout.isDefined) {
+      ClientConf.getTimeAsMs(createRequest.idleTimeout.get);
     }
 
     InteractiveSession.create(
@@ -69,7 +72,8 @@ class InteractiveSessionServlet(
       accessManager,
       createRequest,
       sessionStore,
-      createRequest.ttl)
+      createRequest.ttl,
+      createRequest.idleTimeout)
   }
 
   override protected[interactive] def clientSessionView(
@@ -92,14 +96,34 @@ class InteractiveSessionServlet(
         Nil
       }
 
+    val conf = if (session.conf != null) {
+      session.conf.asJava
+    } else null
+
+    val archives = if (session.archives != null) {
+      session.archives.asJava
+    } else null
+
+    val jars = if (session.jars != null) {
+      session.jars.asJava
+    } else null
+
+    val pyFiles = if (session.pyFiles != null) {
+      session.pyFiles.asJava
+    } else null
+
+    val files = if (session.files != null) {
+      session.files.asJava
+    } else null
+
     new SessionInfo(session.id, session.name.orNull, session.appId.orNull,
       session.owner, session.state.toString, session.kind.toString,
-      session.appInfo.asJavaMap, logs.asJava,
-      session.proxyUser.orNull, session.driverMemory.orNull,
+      session.appInfo.asJavaMap, logs.asJava, session.ttl.orNull,
+      session.idleTimeout.orNull, session.driverMemory.orNull,
       session.driverCores.getOrElse(0), session.executorMemory.orNull,
-      session.executorCores.getOrElse(0), session.conf.asJava, session.archives.asJava,
-      session.files.asJava, session.heartbeatTimeoutS, session.jars.asJava,
-      session.numExecutors.getOrElse(0), session.proxyUser.orNull, session.pyFiles.asJava,
+      session.executorCores.getOrElse(0), conf, archives,
+      files, session.heartbeatTimeoutS, jars,
+      session.numExecutors.getOrElse(0), session.proxyUser.orNull, pyFiles,
       session.queue.orNull)
   }
 

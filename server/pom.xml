@@ -23,11 +23,11 @@
     <groupId>org.apache.livy</groupId>
     <artifactId>livy-main</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>0.8.0-incubating</version>
+    <version>0.9.0-incubating</version>
   </parent>
 
   <artifactId>livy-server</artifactId>
-  <version>0.8.0-incubating</version>
+  <version>0.9.0-incubating</version>
   <packaging>jar</packaging>
 
   <dependencies>
@@ -82,6 +82,11 @@
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-healthchecks</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>io.fabric8</groupId>
+      <artifactId>kubernetes-client</artifactId>
     </dependency>
 
     <dependency>

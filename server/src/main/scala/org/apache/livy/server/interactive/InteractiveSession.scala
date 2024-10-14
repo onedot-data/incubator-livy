@@ -55,6 +55,7 @@ case class InteractiveRecoveryMetadata(
     heartbeatTimeoutS: Int,
     owner: String,
     ttl: Option[String],
+    idleTimeout: Option[String],
     driverMemory: Option[String],
     driverCores: Option[Int],
     executorMemory: Option[String],
@@ -87,9 +88,10 @@ object InteractiveSession extends Logging {
       request: CreateInteractiveRequest,
       sessionStore: SessionStore,
       ttl: Option[String],
+      idleTimeout: Option[String],
       mockApp: Option[SparkApp] = None,
       mockClient: Option[RSCClient] = None): InteractiveSession = {
-    val appTag = s"livy-session-$id-${Random.alphanumeric.take(8).mkString}"
+    val appTag = s"livy-session-$id-${Random.alphanumeric.take(8).mkString}".toLowerCase()
     val impersonatedUser = accessManager.checkImpersonation(proxyUser, owner)
 
     val client = mockClient.orElse {
@@ -138,6 +140,7 @@ object InteractiveSession extends Logging {
       owner,
       impersonatedUser,
       ttl,
+      idleTimeout,
       sessionStore,
       request.driverMemory,
       request.driverCores,
@@ -177,6 +180,7 @@ object InteractiveSession extends Logging {
       metadata.owner,
       metadata.proxyUser,
       metadata.ttl,
+      metadata.idleTimeout,
       sessionStore,
       metadata.driverMemory,
       metadata.driverCores,
@@ -416,6 +420,7 @@ class InteractiveSession(
     owner: String,
     override val proxyUser: Option[String],
     ttl: Option[String],
+    idleTimeout: Option[String],
     sessionStore: SessionStore,
     val driverMemory: Option[String],
     val driverCores: Option[Int],
@@ -429,7 +434,7 @@ class InteractiveSession(
     val pyFiles: List[String],
     val queue: Option[String],
     mockApp: Option[SparkApp]) // For unit test.
-  extends Session(id, name, owner, ttl, livyConf)
+  extends Session(id, name, owner, ttl, idleTimeout, livyConf)
   with SessionHeartbeat
   with SparkAppListener {
 
@@ -457,11 +462,11 @@ class InteractiveSession(
     app = mockApp.orElse {
       val driverProcess = client.flatMap { c => Option(c.getDriverProcess) }
         .map(new LineBufferedProcess(_, livyConf.getInt(LivyConf.SPARK_LOGS_SIZE)))
-
-      if (livyConf.isRunningOnYarn() || driverProcess.isDefined) {
-        Some(SparkApp.create(appTag, appId, driverProcess, livyConf, Some(this)))
+      if (!livyConf.isRunningOnKubernetes()) {
+        driverProcess.map(_ => SparkApp.create(appTag, appId, driverProcess, livyConf, Some(this)))
       } else {
-        None
+        // Create SparkApp for Kubernetes anyway
+        Some(SparkApp.create(appTag, appId, driverProcess, livyConf, Some(this)))
       }
     }
 
@@ -471,15 +476,20 @@ class InteractiveSession(
       info(msg)
       sessionLog = IndexedSeq(msg)
     } else {
-      val uriFuture = Future { client.get.getServerUri.get() }
+      val uriFuture = Future {
+        client.get.getServerUri.get()
+      }(sessionManageExecutors)
 
       uriFuture.onSuccess { case url =>
         rscDriverUri = Option(url)
         sessionSaveLock.synchronized {
           sessionStore.save(RECOVERY_SESSION_TYPE, recoveryMetadata)
         }
-      }
-      uriFuture.onFailure { case e => warn("Fail to get rsc uri", e) }
+      }(sessionManageExecutors)
+
+      uriFuture.onFailure {
+        case e => warn("Fail to get rsc uri", e)
+      }(sessionManageExecutors)
 
       // Send a dummy job that will return once the client is ready to be used, and set the
       // state to "idle" at that point.
@@ -514,13 +524,15 @@ class InteractiveSession(
         }
       })
     }
+    startedOn = Some(System.nanoTime())
+    info(s"Started $this")
   }
 
   override def logLines(): IndexedSeq[String] = app.map(_.log()).getOrElse(sessionLog)
 
   override def recoveryMetadata: RecoveryMetadata =
     InteractiveRecoveryMetadata(id, name, appId, appTag, kind,
-      heartbeatTimeout.toSeconds.toInt, owner, None,
+      heartbeatTimeout.toSeconds.toInt, owner, ttl, idleTimeout,
       driverMemory, driverCores, executorMemory, executorCores, conf,
       archives, files, jars, numExecutors, pyFiles, queue,
       proxyUser, rscDriverUri)
@@ -540,6 +552,8 @@ class InteractiveSession(
       transition(SessionState.ShuttingDown)
       sessionStore.remove(RECOVERY_SESSION_TYPE, id)
       client.foreach { _.stop(true) }
+      // We need to call #kill here explicitly to delete Interactive pods from the cluster
+      if (livyConf.isRunningOnKubernetes()) app.foreach(_.kill())
     } catch {
       case _: Exception =>
         app.foreach {
@@ -567,7 +581,7 @@ class InteractiveSession(
     }
   }
 
-  def interrupt(): Future[Unit] = {
+  def interrupt(): Future[AnyVal] = {
     stop()
   }
 

@@ -22,7 +22,7 @@
 
   <groupId>org.apache.livy</groupId>
   <artifactId>livy-main</artifactId>
-  <version>0.9.3-incubating-onedot</version>
+  <version>0.8.5-incubating-onedot</version>
   <packaging>pom</packaging>
   <name>Livy Project Parent POM</name>
   <description>Livy Project</description>
@@ -211,7 +211,7 @@
     <module>client-http</module>
     <module>core</module>
     <module>core/scala-${scala.binary.version}</module>
-    <module>coverage</module>
+<!--    <module>coverage</module>-->
     <module>examples</module>
 <!--    <module>python-api</module>-->
     <module>repl</module>
@@ -874,7 +874,7 @@
         <plugin>
           <groupId>net.alchim31.maven</groupId>
           <artifactId>scala-maven-plugin</artifactId>
-          <version>4.3.4</version>
+          <version>4.3.1</version>
           <executions>
             <execution>
               <goals>
@@ -991,11 +991,11 @@
           </executions>
         </plugin>
 
-        <plugin>
+<!--        <plugin>
           <groupId>org.apache.rat</groupId>
           <artifactId>apache-rat-plugin</artifactId>
           <version>0.12</version>
-        </plugin>
+        </plugin>-->
 
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -1229,6 +1229,7 @@
         </executions>
       </plugin>
 
+<!--
       <plugin>
         <groupId>org.apache.rat</groupId>
         <artifactId>apache-rat-plugin</artifactId>
@@ -1244,6 +1245,7 @@
           </execution>
         </executions>
       </plugin>
+-->
 
       <!-- Override this plugin with parent POM to add DISCLAIMER file to artifacts. -->
       <plugin>
